@@ -59,6 +59,34 @@ clause( var( "true" ) );
 	}
 }
 ## Dynamic programming conditions
+for my $s ( 4 .. $N-2 ) {
+	my $t = $s+1;
+	for my $i (    1 .. $K ) {
+	for my $j ( $i+1 .. $K ) {
+	for my $k (    1 .. $K ) {
+	for my $l ( $k+1 .. $K ) {
+		next if $i == $k or $i == $l or $j == $k or $j == $l;
+		### Extend the cap
+		for my $m ( $l+1 .. $K ) {
+			next if $m == $i or $m == $j;
+			implies( var("dp$s;$i,$j;$k,$l"),
+				 sat_not(var("in$k,$l,$m")),
+				 var("dp$t;$i,$j;$l,$m")
+				 );
+		}
+		### Extend the cup
+		for my $m ( $j+1 .. $K ) {
+			next if $m == $k or $m == $l;
+			implies( var("dp$s;$i,$j;$k,$l"),
+				 var("in$i,$j,$m"),
+				 var("dp$t;$j,$m;$k,$l")
+				 );
+		}
+	}
+	}
+	}
+	}
+}
 ## Conditions on N-gons
 {
 	my $s = $N-1;
