@@ -25,8 +25,9 @@ for my $k ( $j+1 .. $K ) {
 for my $s ( 4 .. $N-1 ) {
 for my $i (    1 .. $K ) {
 for my $j ( $i+1 .. $K ) {
-for my $k ( $j+1 .. $K ) {
+for my $k (    1 .. $K ) {
 for my $l ( $k+1 .. $K ) {
+	next if $i == $k or $i == $l or $j == $k or $j == $l;
 	var( "dp$s;$i,$j;$k,$l" );
 }
 }
@@ -37,7 +38,24 @@ for my $l ( $k+1 .. $K ) {
 clause( var( "true" ) );
 
 # Generate SAT instance
-
+## Four-point configurations follow from 3-point convexities and concavities
+{
+	my $s = 4;
+	for my $i (    1 .. $K ) {
+	for my $j ( $i+1 .. $K ) {
+	for my $k (    1 .. $K ) {
+	for my $l ( $k+1 .. $K ) {
+		next if $i == $k or $i == $l or $j == $k or $j == $l;
+		if( $i < $k ) {
+		       	implies( sat_not(var("in$i,$k,$l")), var("dp$s;$i,$j;$k,$l") );
+		} else {
+		       	implies(         var("in$k,$i,$j") , var("dp$s;$i,$j;$k,$l") );
+		}
+	}
+	}
+	}
+	}
+}
 
 # Interact with SAT solver
 use IPC::Open3;
@@ -48,6 +66,7 @@ $CLAUSES = 0+@CLAUSES;
 warn "SAT problem has $VARS variables and $CLAUSES clauses.\n";
 print SAT_IN "p cnf $VARS $CLAUSES\n";
 for my $clause ( @CLAUSES ) {
+	warn join( " ", map {name($_)} @$clause), "\n";
 	print SAT_IN join " ", @$clause, "0\n";
 }
 close( SAT_IN );
@@ -83,6 +102,12 @@ sub var {
 	return $var{$name};
 }
 
+sub name {
+	my( $var ) = @_;
+	return $name{$var} if $var > 0;
+	return "-" . $name{0-$var};
+}
+
 sub sat_not {
 	my( $var ) = @_;
 	return -$var;
@@ -91,4 +116,13 @@ sub sat_not {
 sub clause {
 	my( @vars ) = @_;
 	push @CLAUSES, [@vars];
+}
+
+sub implies {
+	my( @vars ) = @_;
+	# Negate all of the variables except the last!
+	for my $i ( 0 .. @vars-2 ) {
+		$vars[$i] = sat_not($vars[$i]);
+	}
+	clause( @vars );
 }
