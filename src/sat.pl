@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use autodie;
 
+use List::Util qw(max);
+
 # Process arguments
 my( $N, $K ) = @ARGV;
 $N //= 6;
@@ -11,13 +13,13 @@ $K //= 2**($N-2) + 1;
 warn "Looking for convex $N-gons among $K points.\n";
 
 # Initialize variables
-my( $VARS, @CLAUSES, %var, %name );
+my( $VARS, @CLAUSES, %var, %name, %desc );
 $VARS = 0;
 ## One "input" variable for each 3-tuple
 for my $i (    1 .. $K ) {
 for my $j ( $i+1 .. $K ) {
 for my $k ( $j+1 .. $K ) {
-	var( "in$i,$j,$k" );
+	var( "in$i,$j,$k", "Is the triple of points $i-$j-$k convex up?" );
 }
 }
 }
@@ -28,7 +30,7 @@ for my $j ( $i+1 .. $K ) {
 for my $k (    1 .. $K ) {
 for my $l ( $k+1 .. $K ) {
 	next if $i == $k or $i == $l or $j == $k or $j == $l;
-	var( "dp$s;$i,$j;$k,$l" );
+	var( "dp$s;$i,$j;$k,$l", "Is there a cup($i,$j)-cap($k,$l) configuration of $s total points?" );
 }
 }
 }
@@ -56,6 +58,44 @@ clause( var( "true" ) );
 	}
 	}
 }
+## Dynamic programming conditions
+## Conditions on N-gons
+{
+	my $s = $N-1;
+	for my $i (    1 .. $K ) {
+	for my $j ( $i+1 .. $K ) {
+	for my $k (    1 .. $K ) {
+	for my $l ( $k+1 .. $K ) {
+		next if $i == $k or $i == $l or $j == $k or $j == $l;
+		### Usual closing configuration
+		for my $m ( max($j,$l)+1 .. $K ) {
+			implies( var("dp$s;$i,$j;$k,$l"),
+				 var("in$i,$j,$m"),
+				 sat_not(var("in$k,$l,$m")),
+				 sat_not(var("true")) # ie, the antecedent is false
+			       );
+		}
+		### Configurations with a small cap
+		for my $m ( $j+1 .. $l-1 ) {
+			implies( var("dp$s;$i,$j;$k,$l"),
+				 var("in$i,$j,$m"),
+				 var("in$j,$m,$l"),
+				 sat_not(var("true")) # as above
+			       );
+		}
+		### Configurations with a small cup
+		for my $m ( $l+1 .. $j-1 ) {
+			implies( var("dp$s;$i,$j;$k,$l"),
+				 sat_not(var("in$k,$l,$m")),
+				 sat_not(var("in$l,$m,$j")),
+				 sat_not(var("true")) # as above
+			       );
+		}
+	}
+	}
+	}
+	}
+}
 
 # Interact with SAT solver
 use IPC::Open3;
@@ -66,7 +106,7 @@ $CLAUSES = 0+@CLAUSES;
 warn "SAT problem has $VARS variables and $CLAUSES clauses.\n";
 print SAT_IN "p cnf $VARS $CLAUSES\n";
 for my $clause ( @CLAUSES ) {
-	warn join( " ", map {name($_)} @$clause), "\n";
+#	warn join( " ", map {name($_)} @$clause), "\n";
 	print SAT_IN join " ", @$clause, "0\n";
 }
 close( SAT_IN );
@@ -85,39 +125,49 @@ if( $response =~ m/s unsatisfiable/i ) {
 	}
 	print "A satisfiable assignment was found:\n";
 	for my $var ( 1 .. $VARS ) {
-		printf "%6d  %1s  %-20s\n", $var, ($assignment[$var] ? "1" : "0"), $name{$var};
+		printf "%6d  %1s  %-15s %-40s\n", $var, ($assignment[$var] ? "1" : "0"), $name{$var}, $desc{$var};
 	}
 } else {
 	print "Could not understand SAT solver response:\n$response";
 }
 
 # Subroutines
+## Look up a variable by name, possibly adding a description in the process
 sub var {
-	my( $name ) = @_;
+	my( $name, $desc ) = @_;
 	if( not exists $var{$name} ) {
+		my( $var );
 		$VARS++;
-		$var{$name} = $VARS;
-		$name{$VARS} = $name;
+		$var = $VARS;
+		$var{$name} = $var;
+		$desc = "" unless defined $desc;
+		$desc{$var} = $desc;
+		$name{$var} = $name;
 	}
 	return $var{$name};
 }
 
+## Look up a literal's name
 sub name {
 	my( $var ) = @_;
 	return $name{$var} if $var > 0;
 	return "-" . $name{0-$var};
 }
 
+## Negate a literal
 sub sat_not {
 	my( $var ) = @_;
 	return -$var;
 }
 
+## Add a clause to the problem
 sub clause {
 	my( @vars ) = @_;
 	push @CLAUSES, [@vars];
 }
 
+## implies( X, Y, Z, T ) adds a clause that X and Y and Z implies T,
+## for any number of clauses X, Y, and Z, but always one clause T.
 sub implies {
 	my( @vars ) = @_;
 	# Negate all of the variables except the last!
