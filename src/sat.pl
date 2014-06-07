@@ -13,7 +13,28 @@ warn "Looking for convex $N-gons among $K points.\n";
 # Initialize variables
 my( $VARS, @CLAUSES, %var, %name );
 $VARS = 0;
-
+## One "input" variable for each 3-tuple
+for my $i (    1 .. $K ) {
+for my $j ( $i+1 .. $K ) {
+for my $k ( $j+1 .. $K ) {
+	var( "in$i,$j,$k" );
+}
+}
+}
+## Many "dynamic programming" variables
+for my $s ( 4 .. $N-1 ) {
+for my $i (    1 .. $K ) {
+for my $j ( $i+1 .. $K ) {
+for my $k ( $j+1 .. $K ) {
+for my $l ( $k+1 .. $K ) {
+	var( "dp$s;$i,$j;$k,$l" );
+}
+}
+}
+}
+}
+## A helper variable
+clause( var( "true" ) );
 
 # Generate SAT instance
 
