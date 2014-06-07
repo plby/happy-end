@@ -8,24 +8,24 @@ use autodie;
 my( $N, $K ) = @ARGV;
 $N //= 6;
 $K //= 2**($N-2) + 1;
+warn "Looking for convex $N-gons among $K points.\n";
 
 # Initialize variables
 my( $VARS, @CLAUSES, %var, %name );
 $VARS = 0;
-var( "x" );
-var( "y" );
-var( "z" );
+
 
 # Generate SAT instance
-clause( var("x"), var("y"), var("z") );
-clause( sat_not(var("x")), sat_not(var("y")), sat_not(var("z")) );
+
 
 # Interact with SAT solver
 use IPC::Open3;
-my( $solver, $pid );
+my( $solver, $pid, $CLAUSES );
 $solver = "/usr/bin/picosat";
 $pid = open3( \*SAT_IN, \*SAT_OUT, "", $solver );
-print SAT_IN "p cnf $VARS ", 0+@CLAUSES, "\n";
+$CLAUSES = 0+@CLAUSES;
+warn "SAT problem has $VARS variables and $CLAUSES clauses.\n";
+print SAT_IN "p cnf $VARS $CLAUSES\n";
 for my $clause ( @CLAUSES ) {
 	print SAT_IN join " ", @$clause, "0\n";
 }
@@ -43,7 +43,7 @@ if( $response =~ m/s unsatisfiable/i ) {
 			$assignment[$1] = 1;
 		}
 	}
-	print "Satisfiable assignment:\n";
+	print "A satisfiable assignment was found:\n";
 	for my $var ( 1 .. $VARS ) {
 		printf "%6d  %1s  %-20s\n", $var, ($assignment[$var] ? "1" : "0"), $name{$var};
 	}
