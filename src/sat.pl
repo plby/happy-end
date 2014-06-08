@@ -30,7 +30,7 @@ for my $j ( $i+1 .. $K ) {
 for my $k (    1 .. $K ) {
 for my $l ( $k+1 .. $K ) {
 	next if $i == $k or $i == $l or $j == $k or $j == $l;
-	var( "dp$s;$i,$j;$k,$l", "Is there a cup($i,$j)-cap($k,$l) configuration of $s total points?" );
+	dp( $s, $i, $j, $k, $l );
 }
 }
 }
@@ -49,9 +49,9 @@ clause( var( "true" ) );
 	for my $l ( $k+1 .. $K ) {
 		next if $i == $k or $i == $l or $j == $k or $j == $l;
 		if( $i < $k ) {
-		       	implies( sat_not(var("in$i,$k,$l")), var("dp$s;$i,$j;$k,$l") );
+		       	implies( sat_not(var("in$i,$k,$l")), dp( $s, $i, $j, $k, $l ) );
 		} else {
-		       	implies(         var("in$k,$i,$j") , var("dp$s;$i,$j;$k,$l") );
+		       	implies(         var("in$k,$i,$j") , dp( $s, $i, $j, $k, $l ) );
 		}
 	}
 	}
@@ -69,17 +69,17 @@ for my $s ( 4 .. $N-2 ) {
 		### Extend the cap
 		for my $m ( $l+1 .. $K ) {
 			next if $m == $i or $m == $j;
-			implies( var("dp$s;$i,$j;$k,$l"),
+			implies( dp( $s, $i, $j, $k, $l ),
 				 sat_not(var("in$k,$l,$m")),
-				 var("dp$t;$i,$j;$l,$m")
+				 dp( $t, $i, $j, $l, $m )
 				 );
 		}
 		### Extend the cup
 		for my $m ( $j+1 .. $K ) {
 			next if $m == $k or $m == $l;
-			implies( var("dp$s;$i,$j;$k,$l"),
+			implies( dp( $s, $i, $j, $k, $l ),
 				 var("in$i,$j,$m"),
-				 var("dp$t;$j,$m;$k,$l")
+				 dp( $t, $j, $m, $k, $l )
 				 );
 		}
 	}
@@ -97,7 +97,7 @@ for my $s ( 4 .. $N-2 ) {
 		next if $i == $k or $i == $l or $j == $k or $j == $l;
 		### Usual closing configuration
 		for my $m ( max($j,$l)+1 .. $K ) {
-			implies( var("dp$s;$i,$j;$k,$l"),
+			implies( dp( $s, $i, $j, $k, $l ),
 				 var("in$i,$j,$m"),
 				 sat_not(var("in$k,$l,$m")),
 				 sat_not(var("true")) # ie, the antecedent is false
@@ -105,7 +105,7 @@ for my $s ( 4 .. $N-2 ) {
 		}
 		### Configurations with a small cap
 		for my $m ( $j+1 .. $l-1 ) {
-			implies( var("dp$s;$i,$j;$k,$l"),
+			implies( dp( $s, $i, $j, $k, $l ),
 				 var("in$i,$j,$m"),
 				 var("in$j,$m,$l"),
 				 sat_not(var("true")) # as above
@@ -113,7 +113,7 @@ for my $s ( 4 .. $N-2 ) {
 		}
 		### Configurations with a small cup
 		for my $m ( $l+1 .. $j-1 ) {
-			implies( var("dp$s;$i,$j;$k,$l"),
+			implies( dp( $s, $i, $j, $k, $l ),
 				 sat_not(var("in$k,$l,$m")),
 				 sat_not(var("in$l,$m,$j")),
 				 sat_not(var("true")) # as above
@@ -192,6 +192,14 @@ sub sat_not {
 sub clause {
 	my( @vars ) = @_;
 	push @CLAUSES, [@vars];
+}
+
+## dp($s; $i, $j; $k, $l) returns a literal representing the DP
+## variable "Is there a cup($i,$j)-cap($k,$l) configuration of $s
+## total points?"  FYI, don't literally type semicolons.
+sub dp {
+	my( $s, $i, $j, $k, $l ) = @_;
+	return var( "dp$s;$i,$j;$k,$l", "Is there a cup($i,$j)-cap($k,$l) configuration of $s total points?" );
 }
 
 ## implies( X, Y, Z, T ) adds a clause that X and Y and Z implies T,
