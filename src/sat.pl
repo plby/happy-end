@@ -95,24 +95,18 @@ for my $s ( 4 .. $N-2 ) {
 	for my $k (    1 .. $K ) {
 	for my $l ( $k+1 .. $K ) {
 		next if $i == $k or $i == $l or $j == $k or $j == $l;
-		### Usual closing configuration
-		for my $m ( max($j,$l)+1 .. $K ) {
-			implies( dp( $s, $i, $j, $k, $l ),
-				 var("in$i,$j,$m"),
-				 sat_not(var("in$k,$l,$m")),
-				 sat_not(var("true")) # ie, the antecedent is false
-			       );
-		}
-		### Configurations with a small cap
+		### Configurations with a cup of at least three sides
 		for my $m ( $j+1 .. $l-1 ) {
+			next if $m == $k;
 			implies( dp( $s, $i, $j, $k, $l ),
 				 var("in$i,$j,$m"),
 				 var("in$j,$m,$l"),
 				 sat_not(var("true")) # as above
 			       );
 		}
-		### Configurations with a small cup
+		### Configurations with a cap of at least three sides
 		for my $m ( $l+1 .. $j-1 ) {
+			next if $m == $i;
 			implies( dp( $s, $i, $j, $k, $l ),
 				 sat_not(var("in$k,$l,$m")),
 				 sat_not(var("in$l,$m,$j")),
