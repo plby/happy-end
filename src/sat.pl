@@ -121,7 +121,9 @@ for my $clause ( @CLAUSES ) {
 close( SAT_IN );
 
 my( $response, $result );
-$response = <SAT_OUT>;
+while( $response = <SAT_OUT> ) {
+	last if $response =~ m/satisfiable/i;
+}
 if( $response =~ m/s unsatisfiable/i ) {
 	print "Problem found unsatisfiable as desired.\n";
 } elsif( $response =~ m/s satisfiable/i ) {
