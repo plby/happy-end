@@ -40,24 +40,11 @@ for my $l ( $k+1 .. $K ) {
 clause( var( "true" ) );
 
 # Generate SAT instance
-## Four-point configurations follow from 3-point convexities and concavities
-{
-	my $s = 4;
-	for my $i (    1 .. $K ) {
-	for my $j ( $i+1 .. $K ) {
-	for my $k (    1 .. $K ) {
-	for my $l ( $k+1 .. $K ) {
-		next if $i == $k or $i == $l or $j == $k or $j == $l;
-		if( $i < $k ) {
-		       	implies( sat_not(var("in$i,$k,$l")), dp( $s, $i, $j, $k, $l ) );
-		} else {
-		       	implies(         var("in$k,$i,$j") , dp( $s, $i, $j, $k, $l ) );
-		}
-	}
-	}
-	}
-	}
-}
+
+## Four-point configurations follow from 3-point convexities and
+## concavities are encoding via the dp(..) subroutine rather than
+## explicitly.
+
 ## Dynamic programming conditions
 for my $s ( 4 .. $N-2 ) {
 	my $t = $s+1;
@@ -193,7 +180,14 @@ sub clause {
 ## total points?"  FYI, don't literally type semicolons.
 sub dp {
 	my( $s, $i, $j, $k, $l ) = @_;
-	return var( "dp$s;$i,$j;$k,$l", "Is there a cup($i,$j)-cap($k,$l) configuration of $s total points?" );
+	return var( "dp$s;$i,$j;$k,$l", "Is there a cup($i,$j)-cap($k,$l) configuration of $s total points?" )
+	  if $s > 4;
+	die "Bad value of s=$s.\n" if $s != 4;
+	if( $i < $k ) {
+		return sat_not(var("in$i,$k,$l"));
+	} else {
+		return var("in$k,$i,$j");
+	}
 }
 
 ## implies( X, Y, Z, T ) adds a clause that X and Y and Z implies T,
