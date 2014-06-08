@@ -15,6 +15,8 @@ warn "Looking for convex $N-gons among $K points.\n";
 # Initialize variables
 my( $VARS, @CLAUSES, %var, %name, %desc );
 $VARS = 0;
+## A helper variable
+clause( var( "true" ) );
 ## One "input" variable for each 3-tuple
 for my $i (    1 .. $K ) {
 for my $j ( $i+1 .. $K ) {
@@ -24,82 +26,56 @@ for my $k ( $j+1 .. $K ) {
 }
 }
 ## Many "dynamic programming" variables
-for my $s ( 4 .. $N-1 ) {
-for my $i (    1 .. $K ) {
-for my $j ( $i+1 .. $K ) {
-for my $k (    1 .. $K ) {
-for my $l ( $k+1 .. $K ) {
-	next if $i == $k or $i == $l or $j == $k or $j == $l;
-	dp( $s, $i, $j, $k, $l );
+for my $s ( 1 .. $N-1 ) {
+	for my $i (    1 .. $K ) {
+	for my $j ( $i   .. $K ) {
+	for my $k ( $j+1 .. $K ) {
+		dp( "cap", $s, $i, $j, $k );
+		dp( "cup", $s, $i, $j, $k );
+	}
+	}
+	}
 }
-}
-}
-}
-}
-## A helper variable
-clause( var( "true" ) );
 
 # Generate SAT instance
 
-## Four-point configurations follow from 3-point convexities and
-## concavities are encoding via the dp(..) subroutine rather than
-## explicitly.
+## Initial conditions for the dynamic programming are encoded through
+## the dp(..) routine.
 
 ## Dynamic programming conditions
-for my $s ( 4 .. $N-2 ) {
+for my $s ( 2 .. $N-2 ) {
 	my $t = $s+1;
 	for my $i (    1 .. $K ) {
-	for my $j ( $i+1 .. $K ) {
-	for my $k (    1 .. $K ) {
-	for my $l ( $k+1 .. $K ) {
-		next if $i == $k or $i == $l or $j == $k or $j == $l;
+	for my $j ( $i   .. $K ) {
+	for my $k ( $j+1 .. $K ) {
 		### Extend the cap
-		for my $m ( $l+1 .. $K ) {
-			next if $m == $i or $m == $j;
-			implies( dp( $s, $i, $j, $k, $l ),
-				 sat_not(var("in$k,$l,$m")),
-				 dp( $t, $i, $j, $l, $m )
+		for my $l ( $k+1 .. $K ) {
+			implies( dp( "cap", $s, $i, $j, $k ),
+				 sat_not(var("in$j,$k,$l")),
+				 dp( "cap", $t, $i, $k, $l )
 				 );
 		}
 		### Extend the cup
-		for my $m ( $j+1 .. $K ) {
-			next if $m == $k or $m == $l;
-			implies( dp( $s, $i, $j, $k, $l ),
-				 var("in$i,$j,$m"),
-				 dp( $t, $j, $m, $k, $l )
+		for my $l ( $k+1 .. $K ) {
+			implies( dp( "cup", $s, $i, $j, $k ),
+				 var("in$j,$k,$l"),
+				 dp( "cup", $t, $i, $k, $l )
 				 );
 		}
-	}
 	}
 	}
 	}
 }
 ## Conditions on N-gons
-{
-	my $s = $N-1;
-	for my $i (    1 .. $K ) {
-	for my $j ( $i+1 .. $K ) {
-	for my $k (    1 .. $K ) {
-	for my $l ( $k+1 .. $K ) {
-		next if $i == $k or $i == $l or $j == $k or $j == $l;
-		### Configurations with a cup of at least three sides
-		for my $m ( $j+1 .. $l-1 ) {
-			next if $m == $k;
-			implies( dp( $s, $i, $j, $k, $l ),
-				 var("in$i,$j,$m"),
-				 var("in$j,$m,$l"),
-				 sat_not(var("true")) # as above
-			       );
-		}
-		### Configurations with a cap of at least three sides
-		for my $m ( $l+1 .. $j-1 ) {
-			next if $m == $i;
-			implies( dp( $s, $i, $j, $k, $l ),
-				 sat_not(var("in$k,$l,$m")),
-				 sat_not(var("in$l,$m,$j")),
-				 sat_not(var("true")) # as above
-			       );
-		}
+for my $s1 ( 1 .. $N-1 ) {
+	my $s2 = $N-$s1;
+	for my $i  (    1 .. $K ) {
+	for my $j1 ( $i   .. $K ) {
+	for my $j2 ( $i   .. $K ) {
+	for my $k  ( max($j1,$j2)+1 .. $K ) {
+		clause( sat_not( dp( "cap", $s1, $i, $j1, $k ) ),
+			sat_not( dp( "cup", $s2, $i, $j2, $k ) )
+		      );
 	}
 	}
 	}
@@ -177,18 +153,21 @@ sub clause {
 	push @CLAUSES, [@vars];
 }
 
-## dp($s; $i, $j; $k, $l) returns a literal representing the DP
-## variable "Is there a cup($i,$j)-cap($k,$l) configuration of $s
-## total points?"  FYI, don't literally type semicolons.
+## dp( "cup", $s, $i, $j, $k ) represents whether there is a cup
+## configuration of $s points starting at $i with final segment
+## $j--$k, and similarly for "cap"
 sub dp {
-	my( $s, $i, $j, $k, $l ) = @_;
-	return var( "dp$s;$i,$j;$k,$l", "Is there a cup($i,$j)-cap($k,$l) configuration of $s total points?" )
-	  if $s > 4;
-	die "Bad value of s=$s.\n" if $s != 4;
-	if( $i < $k ) {
-		return sat_not(var("in$i,$k,$l"));
+	my( $cupcap, $s, $i, $j, $k ) = @_;
+	die "Unrecognized value cupcap=$cupcap.\n" unless $cupcap eq "cup" or $cupcap eq "cap";
+	return var( "true" ) if $s == 1;
+	return sat_not(var("true")) if $j <= $i;
+	return var( "$cupcap$s,$i,$j,$k", "Is there a $cupcap $i..($j,$k) configuration of $s total points?" )
+	  if $s > 2;
+	die "Bad value of s=$s.\n" if $s != 2;
+	if( $cupcap eq "cap" ) {
+		return sat_not(var("in$i,$j,$k"));
 	} else {
-		return var("in$k,$i,$j");
+		return var("in$i,$j,$k");
 	}
 }
 
